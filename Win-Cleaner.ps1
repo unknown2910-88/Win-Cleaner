@@ -2,7 +2,6 @@
 param(
     [switch]$InstallTask,
     [switch]$UninstallTask,
-    [switch]$WhatIf,
     [string]$ConfigPath = (Join-Path $PSScriptRoot 'config.json')
 )
 
@@ -41,7 +40,7 @@ function Remove-FilesSafely {
     try {
         Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue | ForEach-Object {
             try {
-                if ($WhatIf) { Write-Log "WHATIF: would remove $($_.FullName)"; return }
+                if ($WhatIfPreference) { Write-Log "WHATIF: would remove $($_.FullName)"; return }
                 Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop
             } catch { Write-Log "Could not remove $($_.FullName): $($_.Exception.Message)" 'WARN' }
         }
@@ -59,15 +58,15 @@ function Clean-Temp {
 
 function Clean-UpdateCaches {
     Write-Log 'Cleaning optional Windows update caches.'
-    if (-not $WhatIf) { Stop-Service -Name wuauserv,bits,dosvc -Force -ErrorAction SilentlyContinue }
+    if (-not $WhatIfPreference) { Stop-Service -Name wuauserv,bits,dosvc -Force -ErrorAction SilentlyContinue }
     Remove-FilesSafely "$env:windir\SoftwareDistribution\Download"
     Remove-FilesSafely "$env:ProgramData\Microsoft\Windows\DeliveryOptimization\Cache"
-    if (-not $WhatIf) { Start-Service -Name bits,wuauserv,dosvc -ErrorAction SilentlyContinue }
+    if (-not $WhatIfPreference) { Start-Service -Name bits,wuauserv,dosvc -ErrorAction SilentlyContinue }
 }
 
 function Clear-RecycleBinSafely {
     Write-Log 'Emptying Recycle Bin.'
-    if ($WhatIf) { Write-Log 'WHATIF: would empty all Recycle Bins.'; return }
+    if ($WhatIfPreference) { Write-Log 'WHATIF: would empty all Recycle Bins.'; return }
     Clear-RecycleBin -Force -ErrorAction SilentlyContinue
 }
 
@@ -76,7 +75,7 @@ function Remove-EdgeSafely {
     $setup = Get-ChildItem "$env:ProgramFiles(x86)\Microsoft\Edge\Application\*\Installer\setup.exe", "$env:ProgramFiles\Microsoft\Edge\Application\*\Installer\setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $setup) { Write-Log 'Edge installer was not found; no removal performed.' 'WARN'; return }
     $arguments = '--uninstall --system-level --force-uninstall'
-    if ($WhatIf) { Write-Log "WHATIF: would run $($setup.FullName) $arguments"; return }
+    if ($WhatIfPreference) { Write-Log "WHATIF: would run $($setup.FullName) $arguments"; return }
     Start-Process -FilePath $setup.FullName -ArgumentList $arguments -Wait -WindowStyle Hidden
     Write-Log 'Edge uninstall command completed. Some Windows versions may restore Edge through updates.' 'WARN'
 }
@@ -88,7 +87,7 @@ function Disable-ConfiguredServices {
         if ($protected -contains $name) { Write-Log "Refusing to disable protected service: $name" 'WARN'; continue }
         $service = Get-Service -Name $name -ErrorAction SilentlyContinue
         if (-not $service) { Write-Log "Service not found: $name" 'WARN'; continue }
-        if ($WhatIf) { Write-Log "WHATIF: would stop and disable service $name"; continue }
+        if ($WhatIfPreference) { Write-Log "WHATIF: would stop and disable service $name"; continue }
         try {
             if ($service.Status -eq 'Running') { Stop-Service -Name $name -Force -ErrorAction Stop }
             Set-Service -Name $name -StartupType Disabled -ErrorAction Stop
@@ -101,8 +100,6 @@ function Install-SystemPromptTask {
     if (-not $Settings.OpenSystemCommandPrompt) { return }
     $delay = [int]$Settings.SystemCommandPromptDelaySeconds
     $delayIso = 'PT{0}S' -f $delay
-    # InteractiveToken keeps the SYSTEM process in the logged-on user's desktop session.
-    # It will not show on the secure logon screen because Windows session 0 is non-interactive.
     $xml = @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
@@ -113,7 +110,7 @@ function Install-SystemPromptTask {
   <Actions Context="Author"><Exec><Command>$env:windir\System32\cmd.exe</Command><Arguments>/k title Win-Cleaner SYSTEM Command Prompt</Arguments></Exec></Actions>
 </Task>
 "@
-    if ($WhatIf) { Write-Log "WHATIF: would install '$SystemPromptTaskName' as NT AUTHORITY\SYSTEM with a $delay second boot delay."; return }
+    if ($WhatIfPreference) { Write-Log "WHATIF: would install '$SystemPromptTaskName' as NT AUTHORITY\SYSTEM with a $delay second boot delay."; return }
     Register-ScheduledTask -TaskName $SystemPromptTaskName -Xml $xml -Force | Out-Null
     Write-Log "Installed optional interactive SYSTEM command prompt task with a $delay second boot delay." 'WARN'
 }
@@ -136,7 +133,6 @@ function Uninstall-CleanupTask {
     Write-Log "Removed scheduled tasks '$TaskName' and '$SystemPromptTaskName'."
 }
 
-if ($WhatIf) { $WhatIfPreference = $true }
 if ($InstallTask) { $Settings = Get-Settings; Install-CleanupTask; return }
 if ($UninstallTask) { Uninstall-CleanupTask; return }
 if (-not (Test-Administrator)) { throw 'Win-Cleaner must run as Administrator.' }
