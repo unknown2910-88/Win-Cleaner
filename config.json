@@ -1,10 +1,8 @@
 {
+  "ConfigVersion": 1,
   "CleanTemp": true,
   "CleanRecycleBin": false,
   "CleanUpdateCaches": false,
-  "RemoveEdge": false,
   "DisableServices": [],
-  "OpenSystemCommandPrompt": false,
-  "SystemCommandPromptDelaySeconds": 120,
   "LogDirectory": "C:\\ProgramData\\Win-Cleaner\\Logs"
 }

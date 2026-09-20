@@ -1,64 +1,83 @@
 # Win-Cleaner
 
-A conservative PowerShell maintenance tool for Windows 10/11. It is designed to run from **Task Scheduler at system startup**, but it does not make destructive changes unless you explicitly enable them.
+A conservative Windows maintenance tool intended for Windows 10/11 and advanced administrators.
 
-## What it does
+## Security model
 
-- Cleans temporary files for the system and local user profiles.
-- Empties the Recycle Bin when requested.
-- Removes common Windows Update and Delivery Optimization caches when requested.
-- Optionally removes Microsoft Edge using Microsoft's installed uninstaller (opt-in).
-- Optionally disables only the services you explicitly list (opt-in).
-- Optionally creates an advanced, disabled-by-default SYSTEM command prompt task.
-- Writes a timestamped log and supports `-WhatIf` dry runs.
+The cleaner deliberately does **not** create a persistent SYSTEM command prompt and does **not** remove Microsoft Edge. Those operations are outside the scope of routine cleanup and can create security, compatibility, and supportability problems.
 
-> **Important:** Removing Edge, disabling services, and providing a SYSTEM shell can break Windows features or compromise the machine if misused. The defaults are intentionally safe. Review `config.json`, test with `-WhatIf`, and create a restore point or backup before enabling destructive options.
+The scheduled task runs only the cleanup operations selected in `config.json`. Install the repository under a protected directory such as `C:\Program Files\Win-Cleaner` and restrict write access to administrators. The installer protects the state and log directories for SYSTEM and local administrators.
 
-## Quick start (Administrator PowerShell)
+## Supported operations
+
+- Clean system and user temporary files.
+- Optionally clean Windows Update and Delivery Optimization download caches.
+- Optionally empty Recycle Bin (irreversible).
+- Optionally disable an explicitly configured list of services.
+- Record each service's previous startup mode and status in `C:\ProgramData\Win-Cleaner\state.json`.
+- Restore recorded service settings with `-Restore`.
+- Install or uninstall an elevated startup task.
+- Use PowerShell's built-in `-WhatIf` and `-Confirm` support.
+
+Service changes are reversible only when the state file remains available. Uninstalling the task does not restore system changes; run `-Restore` explicitly.
+
+## Configuration
+
+`config.json` contains a schema version and safe defaults:
+
+```json
+{
+  "ConfigVersion": 1,
+  "CleanTemp": true,
+  "CleanRecycleBin": false,
+  "CleanUpdateCaches": false,
+  "DisableServices": [],
+  "LogDirectory": "C:\\ProgramData\\Win-Cleaner\\Logs"
+}
+```
+
+The service list is intentionally explicit. Do not add a service until you understand its role on the target machine.
+
+## Usage (elevated PowerShell)
+
+Run a dry run first:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
 .\Win-Cleaner.ps1 -WhatIf
+```
+
+Install the startup task using the selected configuration:
+
+```powershell
 .\Win-Cleaner.ps1 -InstallTask
 ```
 
-`-InstallTask` creates an elevated task named `Win-Cleaner` that runs at boot and waits for Windows services to settle. The scheduled task invokes the script with the settings in `config.json`.
+The task stores the absolute script and configuration paths, runs as SYSTEM at startup, and is configured not to overlap with another run.
 
-To run a cleanup manually:
+Run manually:
 
 ```powershell
 .\Win-Cleaner.ps1
 ```
 
-To enable optional actions, edit `config.json`, validate with `-WhatIf`, then run the script as Administrator. For example:
-
-```json
-{
-  "CleanTemp": true,
-  "CleanRecycleBin": false,
-  "CleanUpdateCaches": false,
-  "RemoveEdge": false,
-  "DisableServices": [],
-  "OpenSystemCommandPrompt": false,
-  "SystemCommandPromptDelaySeconds": 120
-}
-```
-
-Use an explicit service list, for example `"DisableServices": ["DiagTrack"]`, only after checking what the service does in your environment. The script refuses to disable protected/core services and logs every requested change.
-
-### SYSTEM command prompt
-
-When `OpenSystemCommandPrompt` is `true`, installation also creates a separate task named `Win-Cleaner - SYSTEM Command Prompt`. It starts `cmd.exe /k` as `NT AUTHORITY\\SYSTEM` 120 seconds after startup (the delay is configurable). Because Windows isolates services and boot tasks from desktops, the prompt is configured as interactive and will appear only after an interactive user has logged on; it cannot be displayed on the secure logon screen. Close the prompt when finished. This feature is intentionally off by default.
-
-## Removing the scheduled tasks
+Remove only the scheduled task:
 
 ```powershell
 .\Win-Cleaner.ps1 -UninstallTask
 ```
 
-## Files
+Restore service changes recorded by the cleaner:
 
-- `Win-Cleaner.ps1` — cleanup engine and Task Scheduler installer.
-- `config.json` — safe defaults and explicit opt-in switches.
+```powershell
+.\Win-Cleaner.ps1 -Restore
+```
 
-Run this repository only on Windows, from an elevated PowerShell session for system-wide cleanup.
+`-UninstallTask` and `-Restore` are separate by design. Cleanup of files, caches, and the Recycle Bin is not reversible by this tool.
+
+## Operational notes
+
+- Critical setup and state-management failures stop execution and return a non-zero exit code.
+- Individual locked temp files are logged and skipped; one locked file does not abort the entire cleanup.
+- Logs are written under the configured directory. Keep that directory administrator/SYSTEM-writable only.
+- The script does not include Edge removal. If Edge must be removed, treat that as a separate, OS-version-specific change-management task and validate the signed Microsoft installer before use.
