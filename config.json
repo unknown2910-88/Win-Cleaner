@@ -1,0 +1,8 @@
+{
+  "CleanTemp": true,
+  "CleanRecycleBin": false,
+  "CleanUpdateCaches": false,
+  "RemoveEdge": false,
+  "DisableServices": [],
+  "LogDirectory": "C:\\ProgramData\\Win-Cleaner\\Logs"
+}
