@@ -1,29 +1,29 @@
-# Win-Cleaner
+# Win-Cleaner (Advanced Experimental Branch)
 
-A conservative Windows maintenance tool intended for Windows 10/11 and advanced administrators.
+This branch intentionally re-enables advanced and potentially destructive options for experienced Windows administrators. These features are disabled by default and must be enabled deliberately in `config.json`.
 
-## Security model
+## DANGEROUS FEATURE WARNING
 
-The cleaner deliberately does **not** create a persistent SYSTEM command prompt and does **not** remove Microsoft Edge. Those operations are outside the scope of routine cleanup and can create security, compatibility, and supportability problems.
+The following are intentionally optional and off by default:
 
-The scheduled task runs only the cleanup operations selected in `config.json`. Install the repository under a protected directory such as `C:\Program Files\Win-Cleaner` and restrict write access to administrators. The installer protects the state and log directories for SYSTEM and local administrators.
+- SYSTEM command prompt launched as `NT AUTHORITY\SYSTEM` after boot delay
+- Microsoft Edge uninstallation via the installed Edge setup executable
+- Explicit service disabling via configuration
 
-## Supported operations
+Only enable these if you know exactly what they do and you understand the impact on Windows, applications, and system recovery.
 
-- Clean system and user temporary files.
-- Optionally clean Windows Update and Delivery Optimization download caches.
-- Optionally empty Recycle Bin (irreversible).
-- Optionally disable an explicitly configured list of services.
-- Record each service's previous startup mode and status in `C:\ProgramData\Win-Cleaner\state.json`.
-- Restore recorded service settings with `-Restore`.
-- Install or uninstall an elevated startup task.
-- Use PowerShell's built-in `-WhatIf` and `-Confirm` support.
+## Supported actions
 
-Service changes are reversible only when the state file remains available. Uninstalling the task does not restore system changes; run `-Restore` explicitly.
+- Clean temp files
+- Clean Windows Update and Delivery Optimization cache
+- Empty Recycle Bin
+- Disable explicitly listed services
+- Record service state and restore it later
+- Install an advanced startup task
+- Optionally start an interactive `cmd.exe` under `NT AUTHORITY\SYSTEM` after a configurable delay
+- Optionally uninstall Microsoft Edge using the official Edge setup executable
 
-## Configuration
-
-`config.json` contains a schema version and safe defaults:
+## Default configuration
 
 ```json
 {
@@ -31,29 +31,37 @@ Service changes are reversible only when the state file remains available. Unins
   "CleanTemp": true,
   "CleanRecycleBin": false,
   "CleanUpdateCaches": false,
+  "RemoveEdge": false,
+  "OpenSystemCommandPrompt": false,
+  "SystemCommandPromptDelaySeconds": 120,
   "DisableServices": [],
   "LogDirectory": "C:\\ProgramData\\Win-Cleaner\\Logs"
 }
 ```
 
-The service list is intentionally explicit. Do not add a service until you understand its role on the target machine.
+To enable the dangerous options, set the following values:
 
-## Usage (elevated PowerShell)
+```json
+"RemoveEdge": true,
+"OpenSystemCommandPrompt": true,
+"SystemCommandPromptDelaySeconds": 120,
+"DisableServices": ["DiagTrack"]
+```
 
-Run a dry run first:
+## Usage (administrator PowerShell)
+
+Dry run:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
 .\Win-Cleaner.ps1 -WhatIf
 ```
 
-Install the startup task using the selected configuration:
+Install startup task:
 
 ```powershell
 .\Win-Cleaner.ps1 -InstallTask
 ```
-
-The task stores the absolute script and configuration paths, runs as SYSTEM at startup, and is configured not to overlap with another run.
 
 Run manually:
 
@@ -61,23 +69,25 @@ Run manually:
 .\Win-Cleaner.ps1
 ```
 
-Remove only the scheduled task:
-
-```powershell
-.\Win-Cleaner.ps1 -UninstallTask
-```
-
-Restore service changes recorded by the cleaner:
+Restore previously recorded service state:
 
 ```powershell
 .\Win-Cleaner.ps1 -Restore
 ```
 
-`-UninstallTask` and `-Restore` are separate by design. Cleanup of files, caches, and the Recycle Bin is not reversible by this tool.
+Remove the task:
 
-## Operational notes
+```powershell
+.\Win-Cleaner.ps1 -UninstallTask
+```
 
-- Critical setup and state-management failures stop execution and return a non-zero exit code.
-- Individual locked temp files are logged and skipped; one locked file does not abort the entire cleanup.
-- Logs are written under the configured directory. Keep that directory administrator/SYSTEM-writable only.
-- The script does not include Edge removal. If Edge must be removed, treat that as a separate, OS-version-specific change-management task and validate the signed Microsoft installer before use.
+## Very important warnings
+
+- `OpenSystemCommandPrompt` creates a scheduled task that launches `cmd.exe` as `SYSTEM` after boot.
+- This exposes an elevated interactive shell and is not a safe default.
+- `RemoveEdge` is not a temp-cleanup action. It is a destructive application removal decision.
+- `DisableServices` can break updates, services, or dependent apps.
+- This branch is for advanced users who accept the risk and are responsible for testing and rollback.
+- Use `-WhatIf` before enabling destructive options.
+
+This branch is intentionally experimental and should not be treated as a routine consumer utility.
