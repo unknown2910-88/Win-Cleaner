@@ -196,6 +196,8 @@ function Remove-EdgeSafely {
     }
 }
 
+# Open a System Level Command Prompt For Debuging Purposes, this can be dangerous since you are equiped the the Highest Level of Local Permissions.
+
 function Install-SystemPromptTask {
     if (-not $Settings.OpenSystemCommandPrompt) { return }
     $delay = [int]$Settings.SystemCommandPromptDelaySeconds
@@ -215,6 +217,8 @@ function Install-SystemPromptTask {
         Write-Log "Installed SYSTEM command prompt task with $delay second delay." 'WARN'
     }
 }
+
+# Installs the Task to run at System Startup
 
 function Install-CleanupTask {
     if (-not (Test-Administrator)) { throw 'Run task management from an elevated PowerShell window.' }
